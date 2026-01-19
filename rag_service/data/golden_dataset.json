@@ -1,0 +1,122 @@
+[
+  {
+    "keywords": ["murder", "kill", "death", "hatya"],
+    "ipc": {
+      "section": "Section 302",
+      "text": "Punishment for murder: Whoever commits murder shall be punished with death, or imprisonment for life, and shall also be liable to fine."
+    },
+    "bns": {
+      "section": "Section 103",
+      "text": "Punishment for murder: Whoever commits murder shall be punished with death or imprisonment for life, and shall also be liable to fine."
+    },
+    "hindi_response": "हत्या के लिए दंड: जो कोई हत्या करता है, उसे मृत्युदंड या आजीवन कारावास से दंडित किया जाएगा, और वह जुर्माने के लिए भी उत्तरदायी होगा। (धारा 103 बीएनएस)",
+    "case_laws": [
+      { "title": "Bachan Singh vs State of Punjab (1980)", "summary": "Established the 'rarest of rare' doctrine for imposing the death penalty." },
+      { "title": "KM Nanavati vs State of Maharashtra (1961)", "summary": "Defined constraints on 'grave and sudden provocation' defense." }
+    ],
+    "arguments": {
+      "for": [
+        "The act was premeditated and intentional, fitting the definition of 'Culpable Homicide amounting to Murder'.",
+        "The weapon used suggests a clear intent to cause death.",
+        "There is no evidence of grave and sudden provocation."
+      ],
+      "against": [
+        "The act was committed under grave and sudden provocation (Exception 1).",
+        "The accused acted in the exercise of the right of private defense.",
+        "There was no direct intention to cause death, only knowledge of likelihood."
+      ]
+    },
+    "neutral_analysis": {
+      "factors": [
+        "**Intent (Mens Rea)**: Was there a clear intention to cause death?",
+        "**Knowledge**: Did the accused know the act was imminently dangerous?",
+        "**Provocation**: Was the act a result of a sudden loss of self-control?",
+        "**Nature of Injury**: Was the injury sufficient in the ordinary course of nature to cause death?"
+      ],
+      "interpretations": [
+        "**Hypothesis A (Murder)**: If intent is proven and no exceptions apply, courts typically treat this as Murder (Sec 103 BNS).",
+        "**Hypothesis B (Culpable Homicide)**: If valid provocation exists, the charge may be reduced to Culpable Homicide not amounting to murder.",
+        "**Hypothesis C (Private Defense)**: If the accused proves immediate threat to life, full acquittal is possible under Right of Private Defense."
+      ]
+    }
+  },
+  {
+    "keywords": ["theft", "steal", "chori", "property"],
+    "ipc": {
+      "section": "Section 378",
+      "text": "Theft: Whoever, intending to take dishonestly any movable property out of the possession of any person without that person's consent, moves that property in order to such taking, is said to commit theft."
+    },
+    "bns": {
+      "section": "Section 303",
+      "text": "Theft: Defined similarly but reorganized under new chapter for offenses against property."
+    },
+    "hindi_response": "चोरी: जो कोई किसी व्यक्ति के कब्जे से उसकी सहमति के बिना कोई चल संपत्ति बेईमानी से लेने का इरादा रखता है, वह चोरी करता है। (धारा 303 बीएनएस)",
+    "case_laws": [
+      { "title": "Pyare Lal Bhargava vs State of Rajasthan (1963)", "summary": "Removing a file from an office and giving it to another person constitutes theft, even if temporary." }
+    ],
+    "arguments": {
+      "for": [
+        "The property was movable and was taken out of the possession of the owner.",
+        "There was a dishonest intention to cause wrongful gain.",
+        "The taking was without the consent of the owner."
+      ],
+      "against": [
+        "The property was taken under a bona fide claim of right.",
+        "There was no dishonest intention at the time of taking.",
+        "The owner had implicitly consented to the taking."
+      ]
+    },
+    "neutral_analysis": {
+      "factors": [
+        "**Dishonest Intention**: Was the intent to cause wrongful gain/loss?",
+        "**Possession**: Was the property in someone's possession (not necessarily ownership)?",
+        "**Consent**: Was the property moved without consent?",
+        "**Movability**: Is the subject matter 'movable property'?"
+      ],
+      "interpretations": [
+        "**Theft Established**: If property was moved dishonestly without consent, theft is complete.",
+        "**Claim of Right**: If the accused believed in good faith the property was theirs, 'dishonest intention' may be absent.",
+        "**Temporary Removal**: Even temporary removal can be theft if done with dishonest intent (Pyare Lal Bhargava case)."
+      ]
+    }
+  },
+  {
+    "keywords": ["defamation", "reputation", "manhani", "insult"],
+    "ipc": {
+      "section": "Section 499",
+      "text": "Defamation: Whoever, by words either spoken or intended to be read... makes or publishes any imputation concerning any person intending to harm... reputation..."
+    },
+    "bns": {
+      "section": "Section 356",
+      "text": "Defamation: Consolidates defamation provisions with minor modernization in language concerning digital publication."
+    },
+    "hindi_response": "मानहानि: जो कोई भी शब्दों द्वारा या पढ़ने के लिए किसी भी व्यक्ति के बारे में कोई लांछन लगाता है, उसका इरादा प्रतिष्ठा को नुकसान पहुंचाना है... (धारा 356 बीएनएस)",
+    "case_laws": [
+      { "title": "Subramanian Swamy vs Union of India (2016)", "summary": "Upheld the constitutionality of criminal defamation." }
+    ],
+    "arguments": {
+      "for": [
+        "The statement caused tangible harm to the reputation of the complainant.",
+        "The imputation was made/published to a third party.",
+        "The statement refers specifically to the complainant."
+      ],
+      "against": [
+        "The statement is true and for the public good (First Exception).",
+        "It was a fair criticism of public conduct (Second Exception).",
+        "The statement was made in good faith for the protection of interest."
+      ]
+    },
+    "neutral_analysis": {
+      "factors": [
+        "**Publication**: Was the statement communicated to a third party?",
+        "**Harm to Reputation**: Did it lower the person's character in the estimation of others?",
+        "**Intent**: Was there intent to harm or knowledge that it would harm?"
+      ],
+      "interpretations": [
+        "**Civil vs Criminal**: Courts examine if it fits civil damages or criminal punishment.",
+        "**Exceptions**: Truth for public good is a complete defense.",
+        "**Opinion vs Fact**: Fair comment on public interest matters is generally protected."
+      ]
+    }
+  }
+]
