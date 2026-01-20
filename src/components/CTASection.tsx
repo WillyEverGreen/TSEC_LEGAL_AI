@@ -23,7 +23,7 @@ const CTASection = () => {
           <Link to="/chat">
             <Button 
               size="lg" 
-              className="h-14 px-8 text-base rounded-full bg-white text-black hover:bg-gray-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]"
+              className="h-14 px-8 text-base rounded-full bg-white text-black hover:bg-gradient-to-r hover:from-purple-500 hover:to-indigo-500 hover:text-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]"
             >
               Start Legal Assistant
               <ArrowRight className="ml-2 h-5 w-5" />

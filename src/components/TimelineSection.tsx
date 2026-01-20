@@ -1,6 +1,6 @@
 import React from "react";
 import { Timeline } from "@/components/ui/timeline";
-import { CheckCircle2, Check, ArrowRight } from "lucide-react";
+import { CheckCircle2, Check, ArrowRight, Zap, Target, BookOpen, Server } from "lucide-react";
 
 export default function TimelineSection() {
   const data = [
@@ -45,11 +45,11 @@ export default function TimelineSection() {
             </div>
             <div className="relative">
                <img
-                src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=2000&auto=format&fit=crop"
+                src="/visual_problem.png"
                 alt="Legal Confusion"
-                className="rounded-xl object-cover h-64 w-full shadow-2xl border border-[#f8f8f8]/10"
+                className="rounded-xl object-cover h-72 w-full shadow-2xl border border-[#f8f8f8]/10"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-xl" />
+              <div className="absolute inset-0 bg-black/40 rounded-xl" />
             </div>
         </div>
       ),
@@ -106,10 +106,11 @@ export default function TimelineSection() {
              </div>
              <div className="relative">
                 <img
-                  src="https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?q=80&w=2000&auto=format&fit=crop"
+                  src="/visual_solution.png"
                   alt="AI Solution"
-                  className="rounded-xl object-cover h-full min-h-[300px] w-full shadow-2xl border border-[#f8f8f8]/10"
+                  className="rounded-xl object-cover h-72 w-full shadow-2xl border border-[#f8f8f8]/10"
                 />
+                <div className="absolute inset-0 bg-black/40 rounded-xl" />
              </div>
         </div>
       ),
@@ -123,19 +124,23 @@ export default function TimelineSection() {
                 LegalAi v1.0 demonstrates how AI can responsibly improve legal understanding during India’s transition to new criminal laws.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10">
+                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10 hover:bg-[#f8f8f8]/10 transition-colors">
+                     <Zap className="w-5 h-5 text-purple-400 mb-2" />
                      <h4 className="text-sm font-bold text-white mb-1">Faster Research</h4>
                      <p className="text-[10px] text-gray-400 leading-tight">Reduces lookup from minutes to seconds.</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10">
+                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10 hover:bg-[#f8f8f8]/10 transition-colors">
+                     <Target className="w-5 h-5 text-blue-400 mb-2" />
                      <h4 className="text-sm font-bold text-white mb-1">Improved Accuracy</h4>
                      <p className="text-[10px] text-gray-400 leading-tight">Generated only from verified statutes.</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10">
+                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10 hover:bg-[#f8f8f8]/10 transition-colors">
+                     <BookOpen className="w-5 h-5 text-indigo-400 mb-2" />
                      <h4 className="text-sm font-bold text-white mb-1">Accessible Knowledge</h4>
                      <p className="text-[10px] text-gray-400 leading-tight">Bilingual explanations for non-experts.</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10">
+                  <div className="p-3 rounded-lg bg-[#f8f8f8]/5 border border-[#f8f8f8]/10 hover:bg-[#f8f8f8]/10 transition-colors">
+                     <Server className="w-5 h-5 text-pink-400 mb-2" />
                      <h4 className="text-sm font-bold text-white mb-1">Scalable Infra</h4>
                      <p className="text-[10px] text-gray-400 leading-tight">Supports expansion to other acts.</p>
                   </div>
@@ -143,23 +148,18 @@ export default function TimelineSection() {
             </div>
             <div className="relative h-full min-h-[300px] w-full rounded-xl overflow-hidden border border-[#f8f8f8]/10 group">
                 <img
-                  src="https://images.unsplash.com/photo-1521791136064-7986c2920216?q=80&w=2000&auto=format&fit=crop"
+                  src="/visual_impact.png"
                   alt="Impact"
-                  className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+                  className="rounded-xl object-cover h-72 w-full shadow-2xl border border-[#f8f8f8]/10 transition-transform duration-500 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                   <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-3 rounded-full flex items-center gap-2">
-                      <span className="text-white font-medium">Launch App</span>
-                      <ArrowRight className="w-4 h-4 text-white" />
-                   </div>
-                </div>
+                <div className="absolute inset-0 bg-black/40 rounded-xl pointer-events-none" />
             </div>
         </div>
       ),
     },
   ];
   return (
-    <div className="w-full bg-[#09090B]">
+    <div className="w-full bg-[#09090B] mt-24">
       <Timeline 
         data={data} 
         title="Why LegalAi?"

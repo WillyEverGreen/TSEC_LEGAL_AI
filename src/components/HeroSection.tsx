@@ -9,6 +9,19 @@ const HeroSection = () => {
   return (
     <div className="relative flex flex-col items-center justify-start overflow-visible bg-[#09090B] pt-24 md:pt-32 pb-0">
       {/* Background Gradients - Removed as per user request */}
+      
+      {/* 3D Lady Justice Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-full h-full max-w-7xl opacity-30 mix-blend-lighten">
+              <img 
+                  src="/lady_justice_3d.png" 
+                  alt="Lady Justice 3D Render" 
+                  className="w-full h-full object-contain object-center scale-125 mask-image-gradient" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#09090B] via-[#09090B]/50 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#09090B] via-transparent to-transparent" />
+          </div>
+      </div>
 
       {/* Content Container */}
       <div className="container relative z-10 px-4 md:px-6 text-center max-w-5xl mx-auto pt-12">
@@ -24,7 +37,7 @@ const HeroSection = () => {
         >
           Legal Clarity in <br/>
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400">
-            Milliseconds
+            Seconds
           </span>
         </motion.h1>
 
