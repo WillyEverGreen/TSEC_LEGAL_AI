@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, Scale, Zap, Shield, BookOpen, Mic, MicOff, Download, FileText } from "lucide-react";
+import { Loader2, Scale, Zap, BookOpen, Mic, MicOff, Download, Sparkles, Send } from "lucide-react";
 import Header from "@/components/Header";
+import ReactMarkdown from "react-markdown";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -44,11 +46,11 @@ const QUICK_PROMPTS = [
 ];
 
 const LOADING_TEXTS = [
-    "🔍 Scanning BNS Section 103...",
-    "⚖️ Cross-referencing Judgments...",
-    "📖 Analyzing IPC vs BNS...",
-    "🛡️ Verifying Legal Precedents...",
-    "🧠 Synthesizing Neutral Analysis..."
+    "Scanning BNS Section 103...",
+    "Cross-referencing Judgments...",
+    "Analyzing IPC vs BNS...",
+    "Verifying Legal Precedents...",
+    "Synthesizing Neutral Analysis..."
 ];
 
 const ChatPage = () => {
@@ -163,7 +165,7 @@ const ChatPage = () => {
     setIsLoading(true);
 
     try {
-        const response = await fetch('http://localhost:3001/api/v1/query', {
+        const response = await fetch('http://localhost:8000/query', { // Pointing directly to backend for stability
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -198,211 +200,222 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-[#050505] text-white overflow-hidden selection:bg-purple-500/30">
       <Header />
-      <div className="flex-1 container mx-auto p-4 flex flex-col overflow-hidden max-w-5xl">
-        
-        {/* Top Controls */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 bg-card p-4 rounded-xl border shadow-sm">
-            <div className="flex items-center gap-2">
-                <div className="bg-primary/10 p-2 rounded-lg">
-                    <Scale className="h-5 w-5 text-primary" />
+      
+      <main className="flex-1 flex flex-col relative pt-32">
+         {/* Background Ambient */}
+         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none opacity-20">
+             <div className="absolute top-20 left-1/4 w-96 h-96 bg-purple-600/30 rounded-full blur-[100px]" />
+             <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-indigo-600/30 rounded-full blur-[100px]" />
+         </div>
+
+         <div className="container mx-auto max-w-5xl h-full flex flex-col px-4 relative z-10">
+            {/* Controls Bar */}
+            <motion.div 
+               initial={{ opacity: 0, y: -20 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="flex flex-wrap items-center justify-between gap-3 p-3 mb-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md"
+            >
+                <div className="flex items-center gap-2">
+                   <div className="flex items-center bg-black/40 rounded-lg p-1 border border-white/5">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setArgumentsMode(!argumentsMode)}
+                        className={cn("h-8 px-3 text-xs rounded-md transition-all", argumentsMode ? "bg-yellow-500/20 text-yellow-400" : "text-gray-400 hover:text-white")}
+                      >
+                         <Zap className="w-3 h-3 mr-1.5" /> Arguments
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setAnalysisMode(!analysisMode)}
+                        className={cn("h-8 px-3 text-xs rounded-md transition-all", analysisMode ? "bg-blue-500/20 text-blue-400" : "text-gray-400 hover:text-white")}
+                      >
+                         <Scale className="w-3 h-3 mr-1.5" /> Analysis
+                      </Button>
+                   </div>
                 </div>
-                <h1 className="text-xl font-bold hidden sm:block">Legal Assistant</h1>
-                <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1">
-                    <Shield className="h-3 w-3" /> Secure
-                </span>
-            </div>
 
-            <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
-                <div className="flex items-center space-x-2 bg-muted/50 p-1.5 rounded-lg border">
-                    <Switch id="args-mode" checked={argumentsMode} onCheckedChange={setArgumentsMode} />
-                    <Label htmlFor="args-mode" className="text-sm font-medium cursor-pointer flex items-center gap-1">
-                        <Zap className="h-3.5 w-3.5 text-yellow-500" />
-                        Arguments
-                    </Label>
+                <div className="flex items-center gap-2">
+                    <Select value={domain} onValueChange={setDomain}>
+                        <SelectTrigger className="w-[140px] h-9 bg-black/40 border-white/10 text-xs text-gray-300">
+                            <SelectValue placeholder="Domain" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-black border-white/10 text-gray-300">
+                            <SelectItem value="all">All Domains</SelectItem>
+                            <SelectItem value="criminal">Criminal Law</SelectItem>
+                            <SelectItem value="corporate">Corporate Law</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+                        className="h-9 w-9 p-0 bg-black/40 border-white/10 hover:bg-white/10 text-gray-300"
+                    >
+                        {language === 'en' ? 'EN' : 'HI'}
+                    </Button>
                 </div>
+            </motion.div>
 
-                <div className="flex items-center space-x-2 bg-blue-50/50 p-1.5 rounded-lg border border-blue-100">
-                    <Switch id="analysis-mode" checked={analysisMode} onCheckedChange={setAnalysisMode} />
-                    <Label htmlFor="analysis-mode" className="text-sm font-medium cursor-pointer flex items-center gap-1">
-                        <Scale className="h-3.5 w-3.5 text-blue-500" />
-                        Neutral Analysis
-                    </Label>
-                </div>
-                
-                <Select value={domain} onValueChange={setDomain}>
-                    <SelectTrigger className="w-[130px] h-9">
-                        <SelectValue placeholder="Domain" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Domains</SelectItem>
-                        <SelectItem value="criminal">Criminal Law</SelectItem>
-                        <SelectItem value="corporate">Corporate Law</SelectItem>
-                    </SelectContent>
-                </Select>
+            {/* Chat Area */}
+            <ScrollArea className="flex-1 pr-4">
+                <div className="space-y-6 pb-4">
+                    <AnimatePresence>
+                        {messages.length === 0 && (
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="flex flex-col items-center justify-center min-h-[400px] text-center"
+                            >
+                                <div className="w-20 h-20 bg-gradient-to-tr from-purple-500/20 to-indigo-500/20 rounded-3xl flex items-center justify-center mb-6 border border-white/10">
+                                    <Sparkles className="w-10 h-10 text-purple-400" />
+                                </div>
+                                <h2 className="text-2xl font-semibold text-white mb-2">How can I help you today?</h2>
+                                <p className="text-gray-400 max-w-md mb-8">
+                                    Ask about Indian Penal Code, BNS comparisons, or get legal arguments for specific cases.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+                                    {QUICK_PROMPTS.map((prompt, idx) => (
+                                        <button 
+                                            key={idx}
+                                            onClick={() => handleSend(prompt.query)}
+                                            className="text-left p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-purple-500/30 transition-all group"
+                                        >
+                                            <span className="text-sm font-medium text-gray-300 group-hover:text-purple-300 transition-colors">
+                                                {prompt.text}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
 
-                <Button variant={language === 'en' ? "default" : "outline"} size="sm" onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')} className="w-9 h-9 p-0">
-                    {language === 'en' ? 'EN' : 'HI'}
-                </Button>
-            </div>
-        </div>
-        
-        {/* Chat Area */}
-        <Card className="flex-1 mb-4 overflow-hidden flex flex-col shadow-md border-muted">
-            <ScrollArea className="flex-1 p-4 md:p-6">
-                {messages.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40 space-y-4">
-                        <BookOpen className="h-16 w-16" />
-                        <p className="text-lg font-medium">Ask a legal question to get started</p>
-                    </div>
-                )}
-
-                {messages.map((msg, idx) => (
-                    <div key={idx} className={`mb-6 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[95%] md:max-w-[85%] rounded-2xl p-4 shadow-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-card border rounded-bl-none'}`}>
-                            {msg.role === 'assistant' ? (
-                                <div className="prose dark:prose-invert text-sm max-w-none w-full">
-                                    <div className="whitespace-pre-wrap font-sans leading-relaxed">{msg.content}</div>
+                        {messages.map((msg, idx) => (
+                            <motion.div 
+                                key={idx}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={cn("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}
+                            >
+                                <div className={cn(
+                                    "max-w-[85%] rounded-2xl p-5 shadow-lg relative overflow-hidden",
+                                    msg.role === 'user' 
+                                        ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-br-none" 
+                                        : "bg-white/5 border border-white/10 rounded-bl-none backdrop-blur-md"
+                                )}>
+                                    {/* Noise Texture Overlay */}
+                                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
                                     
-                                    {/* Neutral Analysis Section */}
-                                    {msg.neutral_analysis && (
-                                        <div className="mt-4 bg-blue-50/50 dark:bg-blue-950/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900">
-                                            <div className="flex items-center gap-2 mb-3 border-b border-blue-200 dark:border-blue-800 pb-2">
-                                                <Scale className="h-4 w-4 text-blue-600" />
-                                                <h4 className="font-semibold text-blue-700 dark:text-blue-400 text-sm">Neutral Legal Analysis</h4>
-                                            </div>
-                                            
-                                            <div className="grid md:grid-cols-2 gap-4 mb-4">
-                                                <div>
-                                                    <p className="text-xs font-semibold text-blue-600 uppercase mb-2">Key Factors</p>
-                                                    <ul className="list-disc list-inside text-xs space-y-1 text-muted-foreground">
-                                                        {msg.neutral_analysis.factors.map((f, i) => (
-                                                            <li key={i} dangerouslySetInnerHTML={{__html: f.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}} />
-                                                        ))}
-                                                    </ul>
+                                    <div className="relative z-10">
+                                        {msg.role === 'assistant' ? (
+                                            <div className="prose prose-invert prose-sm max-w-none">
+                                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                
+                                                {/* Analysis Cards */}
+                                                {(msg.neutral_analysis || msg.arguments || (msg.judgments && msg.judgments.length > 0)) && (
+                                                   <div className="mt-6 flex flex-col gap-4">
+                                                      {msg.neutral_analysis && (
+                                                          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                                                              <h4 className="flex items-center gap-2 text-blue-300 font-semibold mb-3 text-xs uppercase tracking-wider">
+                                                                  <Scale className="w-4 h-4" /> Neutral Analysis
+                                                              </h4>
+                                                              <div className="grid md:grid-cols-2 gap-4">
+                                                                 <ul className="text-xs text-blue-100/70 list-disc list-inside space-y-1">
+                                                                     {msg.neutral_analysis.factors.map((f, i) => <li key={i}>{f}</li>)}
+                                                                 </ul>
+                                                                 <ul className="text-xs text-blue-100/70 list-disc list-inside space-y-1">
+                                                                     {msg.neutral_analysis.interpretations.map((f, i) => <li key={i}>{f}</li>)}
+                                                                 </ul>
+                                                              </div>
+                                                          </div>
+                                                      )}
+                                                      
+                                                      {msg.arguments && (
+                                                          <div className="grid md:grid-cols-2 gap-3">
+                                                              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+                                                                  <h4 className="text-green-300 font-semibold mb-2 text-xs uppercase">Arguments For</h4>
+                                                                  <ul className="text-xs text-green-100/70 list-disc list-inside space-y-1">
+                                                                      {msg.arguments.for.map((f, i) => <li key={i}>{f}</li>)}
+                                                                  </ul>
+                                                              </div>
+                                                              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                                                                  <h4 className="text-red-300 font-semibold mb-2 text-xs uppercase">Arguments Against</h4>
+                                                                  <ul className="text-xs text-red-100/70 list-disc list-inside space-y-1">
+                                                                      {msg.arguments.against.map((f, i) => <li key={i}>{f}</li>)}
+                                                                  </ul>
+                                                              </div>
+                                                          </div>
+                                                      )}
+                                                   </div>
+                                                )}
+                                                
+                                                 <div className="mt-4 flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button variant="ghost" size="sm" className="h-6 text-[10px] text-gray-400 hover:text-white" onClick={() => exportPDF(msg, "Legal Query")}>
+                                                        <Download className="h-3 w-3 mr-1" /> Save PDF
+                                                    </Button>
                                                 </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold text-blue-600 uppercase mb-2">Possible Interpretations</p>
-                                                    <ul className="list-disc list-inside text-xs space-y-1 text-muted-foreground">
-                                                        {msg.neutral_analysis.interpretations.map((f, i) => (
-                                                            <li key={i} dangerouslySetInnerHTML={{__html: f.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}} />
-                                                        ))}
-                                                    </ul>
-                                                </div>
                                             </div>
-                                            <p className="text-[10px] text-blue-500/80 italic text-center">
-                                                * This analysis is informational. Final interpretation rests with the judiciary.
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* Arguments Section */}
-                                    {msg.arguments && (
-                                        <div className="mt-4 grid md:grid-cols-2 gap-3">
-                                            <div className="bg-green-50/50 dark:bg-green-950/20 p-3 rounded-lg border border-green-100 dark:border-green-900">
-                                                <h4 className="font-semibold text-green-700 dark:text-green-400 text-xs uppercase mb-2 flex items-center gap-1">
-                                                    <span className="text-lg">🔥</span> Arguments For
-                                                </h4>
-                                                <ul className="space-y-1.5 list-disc list-inside text-xs text-muted-foreground">
-                                                    {msg.arguments.for.map((arg, i) => <li key={i}>{arg}</li>)}
-                                                </ul>
-                                            </div>
-                                            <div className="bg-red-50/50 dark:bg-red-950/20 p-3 rounded-lg border border-red-100 dark:border-red-900">
-                                                <h4 className="font-semibold text-red-700 dark:text-red-400 text-xs uppercase mb-2 flex items-center gap-1">
-                                                    <span className="text-lg">🧊</span> Arguments Against
-                                                </h4>
-                                                <ul className="space-y-1.5 list-disc list-inside text-xs text-muted-foreground">
-                                                    {msg.arguments.against.map((arg, i) => <li key={i}>{arg}</li>)}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Judgments Section */}
-                                    {msg.judgments && msg.judgments.length > 0 && (
-                                        <div className="mt-4 pt-3 border-t border-border/50">
-                                            <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
-                                                <Scale className="h-3 w-3" /> Related Judgments
-                                            </p>
-                                            <div className="grid gap-2">
-                                                {msg.judgments.map((j, i) => (
-                                                    <div key={i} className="text-xs bg-muted/30 hover:bg-muted/50 transition-colors p-2.5 rounded-lg border border-border/50">
-                                                        <span className="font-semibold text-primary block mb-0.5">{j.title}</span>
-                                                        <span className="text-muted-foreground">{j.summary}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="mt-4 flex gap-2 justify-end">
-                                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => exportPDF(msg, "Legal Query")}>
-                                            <Download className="h-3 w-3 mr-1" /> PDF Report
-                                        </Button>
+                                        ) : (
+                                            <p className="font-medium text-sm">{msg.content}</p>
+                                        )}
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="text-sm font-medium">{msg.content}</div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-                
-                {isLoading && (
-                    <div className="flex justify-start mb-6">
-                        <div className="bg-card border rounded-2xl p-4 shadow-sm rounded-bl-none flex items-center gap-3">
-                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                            <span className="text-sm font-medium text-muted-foreground animate-pulse">{loadingText}</span>
-                        </div>
-                    </div>
-                )}
-                <div ref={scrollRef} />
+                            </motion.div>
+                        ))}
+                        
+                        {isLoading && (
+                            <motion.div 
+                                initial={{ opacity: 0 }} 
+                                animate={{ opacity: 1 }}
+                                className="flex items-center gap-3 text-gray-400 pl-4"
+                            >
+                                <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
+                                <span className="text-xs font-mono animate-pulse">{loadingText}</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                    <div ref={scrollRef} />
+                </div>
             </ScrollArea>
-        </Card>
 
-        {/* Quick Prompts - Only show when no messages */}
-        {messages.length === 0 && (
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                {QUICK_PROMPTS.map((prompt, idx) => (
-                    <button 
-                        key={idx}
-                        onClick={() => handleSend(prompt.query)}
-                        className="flex-shrink-0 text-xs font-medium bg-secondary/50 hover:bg-secondary text-secondary-foreground px-3 py-1.5 rounded-full border border-border transition-colors whitespace-nowrap"
+            {/* Input Area */}
+            <div className="pb-6 pt-2">
+                <div className="relative flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 backdrop-blur-xl shadow-2xl">
+                    <Button 
+                        variant={isListening ? "destructive" : "ghost"} 
+                        size="icon" 
+                        onClick={startListening}
+                        className={cn("rounded-full h-10 w-10 shrink-0", isListening ? "" : "text-gray-400 hover:text-white hover:bg-white/10")}
                     >
-                        {prompt.text}
-                    </button>
-                ))}
+                        {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                    
+                    <Input 
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                        placeholder={isListening ? "Listening..." : "Ask your legal question..."}
+                        className="border-0 bg-transparent focus-visible:ring-0 text-white placeholder:text-gray-500 h-10"
+                    />
+                    
+                    <Button 
+                        size="icon" 
+                        onClick={() => handleSend()}
+                        className="rounded-full bg-purple-600 hover:bg-purple-500 text-white h-10 w-10 shrink-0 shadow-[0_0_15px_rgba(147,51,234,0.3)]"
+                    >
+                        <Send className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="mt-3 text-[10px] text-center text-gray-600">
+                    AI can make mistakes. Please verify important information.
+                </div>
             </div>
-        )}
 
-        {/* Input Area - Fixed at bottom of flex container */}
-        <div className="flex gap-2 shrink-0 bg-background pt-2">
-            <Button 
-                variant={isListening ? "destructive" : "outline"}
-                className="h-12 w-12 shrink-0 p-0"
-                onClick={startListening}
-            >
-                {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            </Button>
-            <Input 
-                value={input} 
-                onChange={(e) => setInput(e.target.value)} 
-                placeholder={isListening ? "Listening..." : "Ask a legal question... (e.g. 'Punishment for murder')"} 
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                className="h-12 text-base shadow-sm"
-            />
-            <Button onClick={() => handleSend()} size="lg" className="h-12 px-6 shadow-sm">
-                Send
-            </Button>
-        </div>
-        
-        <div className="mt-3 text-[10px] text-center text-muted-foreground opacity-60">
-            Legal Compass AI is an assistive tool. Always consult a professional lawyer for legal advice.
-        </div>
-      </div>
-
+         </div>
+      </main>
     </div>
   );
 };

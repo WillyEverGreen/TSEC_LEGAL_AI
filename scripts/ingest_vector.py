@@ -61,22 +61,27 @@ def ingest_vector_db():
             judgments = json.load(f)
             print(f"⚖️ Processing {len(judgments)} judgments...")
             
-            for idx, item in enumerate(judgments):
-                # Construct Rich Semantic Text
-                summary = item.get("generated_summary", "") or item.get("full_text", "")[:1000]
-                title = item.get("case_title", "Unknown Case")
-                keywords = ", ".join(item.get("keywords", []))
-                
-                doc_text = f"Case Judgment: {title}. Keywords: {keywords}. Summary: {summary}"
-                
-                documents.append(doc_text)
-                metadatas.append({
-                    "type": "judgment",
-                    "source": "Supreme Court",
-                    "title": title,
-                    "case_id": item.get("case_id", str(idx))
-                })
-                ids.append(f"judgment_{idx}")
+            for idx, topic_item in enumerate(judgments):
+                # The 'golden_dataset' is grouped by TOPIC, containing a list of 'case_laws'
+                topic_keywords = ", ".join(topic_item.get("keywords", []))
+                case_laws = topic_item.get("case_laws", [])
+
+                for case in case_laws:
+                    title = case.get("title", "Unknown Case")
+                    summary = case.get("summary", "")
+                    
+                    # Create a rich vector document
+                    doc_text = f"Case Judgment: {title}. Topic Keywords: {topic_keywords}. Legal Summary: {summary}"
+                    
+                    documents.append(doc_text)
+                    metadatas.append({
+                        "type": "judgment",
+                        "source": "Supreme Court",
+                        "title": title,
+                        "case_id": title.replace(" ", "_")[:20], # Simple ID generation
+                        "keywords": topic_keywords
+                    })
+                    ids.append(f"judgment_{len(ids)}") # Unique incrementing ID
 
     # 4. Upsert to Chroma
     if documents:

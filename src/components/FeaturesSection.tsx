@@ -1,79 +1,82 @@
-import { Link } from "react-router-dom";
-import { Languages, Gavel, ArrowLeftRight, Filter, LinkIcon, FileText } from "lucide-react";
+import { motion } from "framer-motion";
+import { BookOpen, Scale, Zap, ShieldCheck, FileText, Gavel } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const features = [
   {
-    icon: Languages,
-    title: "Bilingual Legal Querying",
-    description: "Search IPC and BNS sections seamlessly across English and Hindi languages.",
-    link: "/chat"
+    title: "Instant Comparison",
+    description: "Compare IPC and BNS sections side-by-side with diff highlighting.",
+    icon: <ArrowRightLeft className="w-6 h-6" />,
+    className: "md:col-span-2",
   },
   {
-    icon: Gavel,
-    title: "Case Law Cross-Referencing",
-    description: "Relevant Supreme Court & High Court judgments mapped to legal sections.",
-    link: "/chat"
+    title: "AI Analysis",
+    description: "Get neutral, objective analysis of legal changes.",
+    icon: <Sparkles className="w-6 h-6" />,
+    className: "md:col-span-1",
   },
   {
-    icon: ArrowLeftRight,
-    title: "IPC vs BNS Comparison",
-    description: "Side-by-side view of old and new legal provisions for easy reference.",
-    link: "/compare"
+    title: "Summarizer",
+    description: "Condense long legal documents into actionable insights.",
+    icon: <FileText className="w-6 h-6" />,
+    className: "md:col-span-1",
   },
   {
-    icon: Filter,
-    title: "Domain-Specific Filtering",
-    description: "Filter by Corporate Law, IT Act, Environmental Law, and more.",
-    link: "/chat"
+    title: "Chat Assistant",
+    description: "Ask questions in natural language about any Indian law.",
+    icon: <MessageSquare className="w-6 h-6" />,
+    className: "md:col-span-2",
   },
-  {
-    icon: LinkIcon,
-    title: "Verifiable Source Footnotes",
-    description: "Clickable citations linked to official government gazettes.",
-    link: "/chat"
-  },
-  {
-    icon: FileText,
-    title: "Document Summarization",
-    description: "Upload judgments or legal documents to extract key points instantly.",
-    link: "/summarize"
-  }
 ];
 
-const FeaturesSection = () => {
-  return (
-    <section id="features" className="section-padding section-alt">
-      <div className="section-container">
-        <div className="text-center mb-12">
-          <h2 className="font-serif text-3xl md:text-4xl text-foreground mb-4">
-            Key Features
-          </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
-            Core capabilities designed specifically for Indian legal research
-          </p>
-          <div className="w-16 h-0.5 bg-primary mx-auto mt-6" />
-        </div>
+import { ArrowRightLeft, Sparkles, MessageSquare } from "lucide-react";
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <Link key={index} to={feature.link} className="block h-full">
-                <div className="legal-card h-full hover:border-primary/50 transition-colors">
-                <div className="feature-icon mb-4">
-                    <feature.icon className="h-6 w-6" />
+const FeaturesSection = () => {
+    return (
+        <section className="py-32 px-4 bg-black relative overflow-hidden">
+             {/* Background Gradients */}
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-black to-black pointer-events-none" />
+
+            <div className="container mx-auto max-w-6xl relative z-10">
+                <div className="text-center mb-20">
+                    <h2 className="text-3xl md:text-5xl font-serif font-bold text-white mb-6">
+                        Everything needed for <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Legal Excellence</span>
+                    </h2>
+                    <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
+                        Transition seamlessly from IPC to BNS with AI-powered insights, real-time comparisons, and instant summarization.
+                    </p>
                 </div>
-                <h3 className="font-serif text-xl text-foreground mb-2">
-                    {feature.title}
-                </h3>
-                <p className="text-muted-foreground leading-relaxed">
-                    {feature.description}
-                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {features.map((feature, i) => (
+                        <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: i * 0.1 }}
+                            className={cn(
+                                "group relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.02] p-8 hover:bg-white/[0.05] transition-all duration-300",
+                                "hover:border-purple-500/20"
+                            )}
+                        >
+                            <div className="flex items-start gap-6">
+                                <div className="shrink-0 p-3 rounded-2xl bg-white/5 text-purple-400 group-hover:text-white group-hover:bg-purple-600 transition-all duration-300">
+                                    {feature.icon}
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-3 group-hover:text-purple-200 transition-colors">{feature.title}</h3>
+                                    <p className="text-gray-500 leading-relaxed group-hover:text-gray-300 transition-colors">
+                                        {feature.description}
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
                 </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+            </div>
+        </section>
+    );
 };
 
 export default FeaturesSection;

@@ -12,7 +12,7 @@ class RAGEngine:
     def __init__(self):
         self.api_key = os.getenv("OPENROUTER_API_KEY") 
         # Default to free Mistral, but allow override via .env (e.g., 'openai/gpt-4o')
-        self.model_name = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct-v0.1")
+        self.model_name = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct-v0.1") # Reload trigger
 
         if self.api_key:
             print(f"[RAGEngine] OpenRouter Key Found. Using Model: {self.model_name}")
@@ -173,33 +173,57 @@ class RAGEngine:
             print(f"[RAGEngine] Summarization Pipeline Error: {e}")
             return f"Failed to summarize document: {str(e)}"
 
-    async def compare_clauses(self, text1: str, text2: str) -> str:
+    async def compare_clauses(self, text1: str, text2: str) -> dict:
         """
-        Compares two legal texts/clauses using LLM.
+        Compares two legal clauses and returns a structured JSON analysis.
         """
-        print(f"[RAGEngine] Comparing clauses...")
-        
         if not self.api_key:
-            return "Error: LLM not available for comparison."
+            return {"error": "API Key missing"}
 
         system_prompt = (
-            "You are a Legal Comparison Expert. "
-            "Compare the following two legal texts (clauses, sections, or judgments). "
-            "Highlight: "
-            "1. **Key Differences**: content, intent, or penalties. "
-            "2. **Key Similarities**: Shared principles. "
-            "3. **Implications**: Which one is stricter or broader? "
-            "Format your response in Markdown."
+            "You are an expert Legal Analyst specializing in Indian Law (IPC vs BNS). "
+            "Compare the two provided legal clauses deeply. "
+            "You MUST return the result in valid JSON format with the following structure:\n"
+            "{\n"
+            '  "change_type": "Renumbered / Modified / New / Removed",\n'
+            '  "legal_impact": "A concise summary of the legal impact...",\n'
+            '  "penalty_difference": "No substantive change / Increased / Decreased",\n'
+            '  "key_changes": ["Bullet point 1", "Bullet point 2"],\n'
+            '  "verdict": "Minor procedural change" (or "Major substantive change")\n'
+            "}\n"
+            "Do not include any Markdown formatting (like ```json). Just the raw JSON string."
         )
 
+        user_query = f"Clause A (Old/IPC): {text1}\n\nClause B (New/BNS): {text2}"
+
         try:
-            comparison = self._call_llm([
+            response_text = self._call_llm([
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Text A:\n{text1}\n\nText B:\n{text2}"}
+                {"role": "user", "content": user_query}
             ])
-            return comparison
+            
+            # Clean up potential markdown code blocks if the LLM ignores instructions
+            cleaned_text = response_text.replace("```json", "").replace("```", "").strip()
+            
+            import json
+            try:
+                # Attempt to parse JSON
+                analysis_json = json.loads(cleaned_text)
+                return analysis_json
+            except json.JSONDecodeError:
+                print(f"[RAGEngine] JSON Parse Error. Raw: {cleaned_text}")
+                # Fallback to simple text if JSON fails
+                return {
+                    "change_type": "Analysis Generated",
+                    "legal_impact": cleaned_text,
+                    "penalty_difference": "See analysis",
+                    "key_changes": ["Could not parse structured data"],
+                    "verdict": "See details"
+                }
+
         except Exception as e:
-             return f"Error generating comparison: {e}"
+            print(f"[RAGEngine] Compare Error: {e}")
+            return {"error": str(e)}
 
     async def query(self, query: str, language: str = "en", arguments_mode: bool = False, analysis_mode: bool = False) -> Dict[str, Any]:
         """
@@ -209,6 +233,7 @@ class RAGEngine:
         
         context_text = ""
         citations = []
+        related_judgments = []
         
         # 1. Retrieve from Vector DB
         try:
@@ -238,6 +263,11 @@ class RAGEngine:
                              "section": meta.get("title", "Case Law"), 
                              "text": doc[:200] + "..."
                          })
+                         related_judgments.append({
+                             "title": meta.get("title", "Unknown Case"),
+                             "summary": doc[:200] + "...",
+                             "case_id": meta.get("case_id", "")
+                         })
             else:
                 context_text = "Database not available. Answer generically."
         except Exception as e:
@@ -253,37 +283,76 @@ class RAGEngine:
             system_prompt = (
                 "You are an expert Indian Legal Assistant (Legal Compass AI). "
                 "Answer the user's legal query based ONLY on the provided Context. "
-                "Citings: Explicitly mention 'BNS Section X' or 'IPC Section Y' if present in context. "
+                "Format: Use Markdown. You MUST use **Bold** (double asterisks) for all Section numbers (e.g., **Section 302**), Act names, and key legal terms. "
+                "Structure: Use **Bold Headings** and *Bullet Points* for clarity. "
+                "Citings: Explicitly mention '**BNS Section X**' or '**IPC Section Y**' if present. "
                 "Tone: Professional, neutral, and precise. "
+                "CRITICAL: Do NOT duplicate the content of Neutral Analysis or Arguments in the main response. "
+                "The main response should only contain the direct answer and citations."
             )
             
             if language == "hi":
                 system_prompt += " Reply in Hindi (Devanagari script)."
 
-            user_query = f"Context:\n{context_text}\n\nQuery: {query}\n\n"
-            
             if analysis_mode:
-                user_query += "\nIMPORTANT: Provide a Neutral Legal Analysis. Format MUST include exactly these tags: [FACTORS] list item 1, item 2 [/FACTORS] and [INTERPRETATIONS] item 1, item 2 [/INTERPRETATIONS]."
+                system_prompt += (
+                    "\n[NEUTRAL ANALYSIS REQUESTED]\n"
+                    "You must also provide a Neutral Analysis section at the end.\n"
+                    "Strictly use this format:\n"
+                    "[FACTORS]\n- Factor 1\n- Factor 2\n[/FACTORS]\n"
+                    "[INTERPRETATIONS]\n- Interpretation 1\n- Interpretation 2\n[/INTERPRETATIONS]"
+                )
             
             if arguments_mode:
-                user_query += "\nIMPORTANT: Provide balanced arguments. Format MUST include: [FOR] item 1, item 2 [/FOR] and [AGAINST] item 1, item 2 [/AGAINST]."
+                system_prompt += (
+                    "\n[ARGUMENTS REQUESTED]\n"
+                    "You must also provide Balanced Arguments at the end.\n"
+                    "Strictly use this format:\n"
+                    "[FOR]\n- Argument For 1\n- Argument For 2\n[/FOR]\n"
+                    "[AGAINST]\n- Argument Against 1\n- Argument Against 2\n[/AGAINST]"
+                )
+
+            user_query = f"Context:\n{context_text}\n\nQuery: {query}\n"
+            
+            # Append instructions to User Prompt for Recency Bias
+            if analysis_mode:
+                user_query += (
+                    "\n\nIMPORTANT: You MUST also provide a Neutral Analysis at the very end.\n"
+                    "Use this EXACT format:\n"
+                    "[FACTORS]\n- Factor 1\n- Factor 2\n[/FACTORS]\n"
+                    "[INTERPRETATIONS]\n- Interpretation 1\n- Interpretation 2\n[/INTERPRETATIONS]"
+                )
+
+            if arguments_mode:
+                 user_query += (
+                    "\n\nIMPORTANT: You MUST also provide Balanced Arguments at the very end.\n"
+                    "Use this EXACT format:\n"
+                    "[FOR]\n- Argument For 1\n[/FOR]\n"
+                    "[AGAINST]\n- Argument Against 1\n[/AGAINST]"
+                )
 
             try:
                 raw_answer = self._call_llm([
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_query}
                 ])
+                print(f"\n[DEBUG] Raw LLM Answer:\n{raw_answer}\n[DEBUG] End Raw Answer\n")
                 
                 def extract_tag(text, start_tag, end_tag):
-                    try:
-                        pattern = f"{re.escape(start_tag)}(.*?){re.escape(end_tag)}"
-                        match = re.search(pattern, text, re.DOTALL)
-                        if match:
-                            content = match.group(1).strip()
-                            return [item.strip("- ").strip() for item in content.split("\n") if item.strip()]
-                        return []
-                    except:
-                        return []
+                    # Try exact tag first
+                    pattern = f"{re.escape(start_tag)}\\s*(.*?)\\s*{re.escape(end_tag)}"
+                    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+                    
+                    if not match and "ARGUMENTS" in start_tag:
+                         # Fallback for "ARGUMENTS FOR" variations
+                         alt_start = start_tag.replace("FOR", "ARGUMENTS FOR").replace("AGAINST", "ARGUMENTS AGAINST")
+                         pattern = f"{re.escape(alt_start)}\\s*(.*?)\\s*{re.escape(end_tag)}"
+                         match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+
+                    if match:
+                        content = match.group(1).strip()
+                        return [item.strip("- *").strip() for item in content.split("\n") if item.strip()]
+                    return []
 
                 if analysis_mode:
                     factors = extract_tag(raw_answer, "[FACTORS]", "[/FACTORS]")
@@ -297,7 +366,21 @@ class RAGEngine:
                     if for_args or against_args:
                         arguments = {"for": for_args or ["N/A"], "against": against_args or ["N/A"]}
 
-                answer = re.sub(r'\[/?(FACTORS|INTERPRETATIONS|FOR|AGAINST)\]', '', raw_answer).strip()
+                # Remove the special sections from the main answer to avoid duplication
+                # Expanded regex to catch variations like [ARGUMENTS FOR]
+                answer = re.sub(r'\[/?(FACTORS|INTERPRETATIONS|FOR|AGAINST|ARGUMENTS FOR|ARGUMENTS AGAINST)\]', '', raw_answer, flags=re.IGNORECASE).strip()
+                
+                # Robust approach: Split by the first occurrence of any special tag
+                # Added NEUTRAL ANALYSIS and BALANCED ARGUMENTS which the LLM was using
+                split_patterns = ["[FACTORS]", "[INTERPRETATIONS]", "[FOR]", "[AGAINST]", "[ARGUMENTS FOR]", "[ARGUMENTS AGAINST]", "[NEUTRAL ANALYSIS]", "[BALANCED ARGUMENTS]"]
+                for p in split_patterns:
+                    # Case insensitive check for splitting
+                    idx = answer.upper().find(p)
+                    if idx != -1:
+                        answer = answer[:idx].strip()
+
+                # Cleanup
+                answer = re.sub(r'\n{3,}', '\n\n', answer).strip()
                 
             except Exception as e:
                 print(f"[RAGEngine] LLM Error: {e}")
@@ -306,7 +389,7 @@ class RAGEngine:
         return {
             "answer": answer,
             "citations": citations[:3],
-            "related_judgments": [], 
+            "related_judgments": related_judgments[:3], 
             "arguments": arguments,
             "neutral_analysis": neutral_analysis,
             "disclaimer": "AI-generated response. For informational purposes only. Consult a qualified lawyer."

@@ -18,8 +18,19 @@ if not api_key:
     print("Please add: OPENROUTER_API_KEY=sk-or-...")
     exit(1)
 
-print(f"Key loaded: {api_key[:10]}...")
+print(f"Key loaded: {api_key[:10]}...{api_key[-5:]} (Length: {len(api_key)})")
+    
+# Test 1: Check Limits/Auth via auth endpoint if possible, or just models
+print("\n--- Testing /auth/key endpoint ---")
+try:
+    auth_resp = requests.get("https://openrouter.ai/api/v1/auth/key", headers={"Authorization": f"Bearer {api_key}"})
+    print(f"Auth Status: {auth_resp.status_code}")
+    print(f"Auth Body: {auth_resp.text}")
+except Exception as e:
+    print(f"Auth Check Failed: {e}")
 
+# Test 2: Chat Completion
+print(f"\n--- Testing Chat Completion (meta-llama/llama-3.1-8b-instruct:free) ---")
 url = "https://openrouter.ai/api/v1/chat/completions"
 headers = {
     "Authorization": f"Bearer {api_key}",
