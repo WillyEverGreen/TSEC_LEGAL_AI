@@ -29,6 +29,7 @@ class QueryRequest(BaseModel):
     domain: str = "all"
     arguments_mode: bool = False
     analysis_mode: bool = False
+    session_id: str = None  # NEW: For conversation memory
 
 @app.get("/")
 def read_root():
@@ -41,7 +42,22 @@ def health_check():
 @app.post("/query")
 async def handle_query(request: QueryRequest):
     try:
-        response = await engine.query(request.query, request.language, request.arguments_mode, request.analysis_mode)
+        # Add user message to conversation memory if session exists
+        if request.session_id:
+            engine.conversation_memory.add_message(request.session_id, "user", request.query)
+        
+        response = await engine.query(
+            request.query, 
+            request.language, 
+            request.arguments_mode, 
+            request.analysis_mode,
+            request.session_id  # Pass session_id to engine
+        )
+        
+        # Add assistant response to conversation memory
+        if request.session_id and "answer" in response:
+            engine.conversation_memory.add_message(request.session_id, "assistant", response["answer"])
+        
         return response
     except Exception as e:
         import traceback
@@ -68,6 +84,44 @@ async def handle_compare(request: CompareRequest):
     try:
         comparison = await engine.compare_clauses(request.text1, request.text2)
         return {"comparison": comparison}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# NEW: Session Management Endpoints
+@app.post("/session/create")
+async def create_session():
+    """Create a new conversation session"""
+    try:
+        session_id = engine.conversation_memory.create_session()
+        return {"session_id": session_id, "status": "created"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/session/clear")
+async def clear_session(session_id: str):
+    """Clear conversation history for a session"""
+    try:
+        engine.conversation_memory.clear_session(session_id)
+        return {"session_id": session_id, "status": "cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/session/{session_id}/history")
+async def get_session_history(session_id: str, max_messages: int = 10):
+    """Get conversation history for a session"""
+    try:
+        history = engine.conversation_memory.get_history(session_id, max_messages)
+        metadata = engine.conversation_memory.get_session_info(session_id)
+        return {"session_id": session_id, "history": history, "metadata": metadata}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/session/{session_id}")
+async def delete_session(session_id: str):
+    """Delete a conversation session"""
+    try:
+        engine.conversation_memory.delete_session(session_id)
+        return {"session_id": session_id, "status": "deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

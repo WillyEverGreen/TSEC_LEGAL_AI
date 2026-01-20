@@ -7,6 +7,8 @@ import chromadb
 from chromadb.utils import embedding_functions
 import requests
 import io
+from text_processor import TextProcessor
+from conversation_memory import ConversationMemory
 
 class RAGEngine:
     def __init__(self):
@@ -18,6 +20,12 @@ class RAGEngine:
             print(f"[RAGEngine] OpenRouter Key Found. Using Model: {self.model_name}")
         else:
             print("[RAGEngine] ⚠️ Warning: OPENROUTER_API_KEY not found. LLM features disabled.")
+
+        # Initialize Enhanced Text Processor
+        self.text_processor = TextProcessor()
+        
+        # Initialize Conversation Memory
+        self.conversation_memory = ConversationMemory()
 
         # Initialize ChromaDB Client
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,37 +94,36 @@ class RAGEngine:
     async def summarize(self, file_content: bytes, filename: str) -> str:
         """
         Advanced Summarization Pipeline: Extract -> Clean -> Chunk -> Summarize Parts -> Combine.
+        Uses enhanced text processor with multi-modal extraction and 12-stage cleaning.
         """
         print(f"[RAGEngine] Processing file: {filename} ({len(file_content)} bytes)")
         
         full_text = ""
+        extraction_method = "unknown"
+        
         try:
-            # 1. Extract Text (Enhanced)
+            # 1. Extract Text (Enhanced with multi-modal support)
             if filename.lower().endswith(".pdf"):
-                try:
-                    import pdfplumber
-                    with pdfplumber.open(io.BytesIO(file_content)) as pdf:
-                        for page in pdf.pages:
-                            extracted = page.extract_text()
-                            if extracted:
-                                full_text += extracted + "\n"
-                except ImportError:
-                    print("[RAGEngine] pdfplumber not found, falling back to pypdf.")
-                    from pypdf import PdfReader
-                    reader = PdfReader(io.BytesIO(file_content))
-                    for page in reader.pages:
-                        extracted = page.extract_text()
-                        if extracted:
-                            full_text += extracted + "\n"
+                full_text, extraction_method = self.text_processor.extract_text_from_pdf(
+                    file_content, filename, max_ocr_pages=100
+                )
+                
+                if extraction_method == "failed":
+                    return full_text  # Error message
             else:
                 full_text = file_content.decode("utf-8", errors="ignore")
+                extraction_method = "text"
 
             if not full_text.strip():
                 return "Error: Could not extract text from document."
 
-            # 2. Clean
-            cleaned_text = self._clean_text(full_text)
-            print(f"[RAGEngine] Extracted {len(cleaned_text)} characters.")
+            # 2. Clean with 12-stage pipeline
+            cleaned_text = self.text_processor.clean_text(full_text)
+            print(f"[RAGEngine] Extracted {len(cleaned_text)} characters using {extraction_method}.")
+            
+            # 3. Detect language
+            detected_lang = self.text_processor.detect_language(cleaned_text)
+            print(f"[RAGEngine] Detected language: {detected_lang}")
 
             # 3. Chunk
             chunks = self._chunk_text(cleaned_text, chunk_size=8000) # ~ 2000 tokens
@@ -225,10 +232,24 @@ class RAGEngine:
             print(f"[RAGEngine] Compare Error: {e}")
             return {"error": str(e)}
 
-    async def query(self, query: str, language: str = "en", arguments_mode: bool = False, analysis_mode: bool = False) -> Dict[str, Any]:
+    async def query(self, query: str, language: str = "en", arguments_mode: bool = False, analysis_mode: bool = False, session_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Semantic Search + LLM Generation.
+        Semantic Search + LLM Generation with Conversation Memory.
+        
+        Args:
+            query: User's question
+            language: 'en' or 'hi'
+            arguments_mode: Generate balanced arguments
+            analysis_mode: Generate neutral analysis
+            session_id: Optional session ID for conversation memory
         """
+        # Handle conversation memory and query reformulation
+        original_query = query
+        if session_id:
+            query = self.conversation_memory.reformulate_query(session_id, query)
+            if query != original_query:
+                print(f"[RAGEngine] Query reformulated: '{original_query}' -> '{query}'")
+        
         print(f"[RAGEngine] Semantic Query: {query} (Lang: {language})")
         
         context_text = ""
@@ -240,7 +261,7 @@ class RAGEngine:
             if self.collection:
                 results = self.collection.query(
                     query_texts=[query],
-                    n_results=5,
+                    n_results=10,  # Increased from 5 to 10 for better context
                     include=["documents", "metadatas", "distances"]
                 )
                 
