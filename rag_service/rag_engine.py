@@ -14,10 +14,10 @@ class RAGEngine:
     def __init__(self):
         self.api_key = os.getenv("OPENROUTER_API_KEY") 
         # Default to free Mistral, but allow override via .env (e.g., 'openai/gpt-4o')
-        self.model_name = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct-v0.1") # Backward-compat default
+        self.model_name = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct") # Valid model ID
         # Separate model routing (legal vs general)
         self.model_legal = os.getenv("OPENROUTER_MODEL_LEGAL", os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-orchestrator-8b"))
-        self.model_simple = os.getenv("OPENROUTER_MODEL_SIMPLE", "mistralai/mistral-7b-instruct-v0.1")
+        self.model_simple = os.getenv("OPENROUTER_MODEL_SIMPLE", "mistralai/mistral-7b-instruct")
 
         if self.api_key:
             print(f"[RAGEngine] OpenRouter Key Found. Using Model(s): legal={self.model_legal}, simple={self.model_simple}")
@@ -79,7 +79,7 @@ class RAGEngine:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "HTTP-Referer": "http://localhost:3000",
+            "HTTP-Referer": os.getenv("APP_URL", "http://localhost:3000"),
             "X-Title": "LegalAi",
             "Content-Type": "application/json"
         }
@@ -118,8 +118,8 @@ class RAGEngine:
         """Cleans extracted text by normalizing whitespace."""
         return re.sub(r'\s+', ' ', text).strip()
 
-    def _chunk_text(self, text: str, chunk_size: int = 4000) -> List[str]:
-        """Splits text into chunks of approx chunk_size characters (roughly 1000 tokens)."""
+    def _chunk_text(self, text: str, chunk_size: int = 6000) -> List[str]:
+        """Splits text into chunks of approx chunk_size characters (roughly 1500 tokens)."""
         chunks = []
         for i in range(0, len(text), chunk_size):
             chunks.append(text[i:i + chunk_size])
@@ -160,7 +160,7 @@ class RAGEngine:
             print(f"[RAGEngine] Detected language: {detected_lang}")
 
             # 3. Chunk
-            chunks = self._chunk_text(cleaned_text, chunk_size=8000) # ~ 2000 tokens
+            chunks = self._chunk_text(cleaned_text, chunk_size=6000)
             print(f"[RAGEngine] Created {len(chunks)} chunks.")
 
             if not self.api_key:
@@ -169,14 +169,22 @@ class RAGEngine:
             # 4. Summarize Chunks
             chunk_summaries = []
             
-            # Limit chunks to avoid timeouts (MVP limit: first 5 chunks)
-            max_chunks = 5
+            # SAFEGUARD: Limit chunks to avoid timeouts (Max 4 chunks)
+            max_chunks = min(4, len(chunks))
             for i, chunk in enumerate(chunks[:max_chunks]):
-                print(f"[RAGEngine] Summarizing chunk {i+1}/{min(len(chunks), max_chunks)}...")
+                print(f"[RAGEngine] Summarizing chunk {i+1}/{max_chunks}...")
                 prompt = (
-                    "You are a legal AI assistant. Summarize the following legal text clearly and accurately. "
-                    "Preserve legal meaning, mention important sections/clauses, do NOT hallucinate. "
-                    "Keep language formal.\n\n"
+                    "You are a legal AI assistant.\n"
+                    "Summarize the following legal text with:\n"
+                    "- Key facts\n"
+                    "- Legal issues\n"
+                    "- Sections / Acts mentioned (ONLY if explicitly present)\n"
+                    "- Court observations (if any)\n\n"
+                    "Rules:\n"
+                    "- Do NOT infer missing sections\n"
+                    "- Do NOT hallucinate citations\n"
+                    "- Use neutral legal language\n"
+                    "- Bullet points preferred\n\n"
                     f"Text:\n{chunk}"
                 )
                 try:
@@ -197,6 +205,10 @@ class RAGEngine:
                 "Using the provided summaries of a legal document, create a single, Master Structured Summary. "
                 "Format strictly in Markdown with the following sections:\n"
                 "### 📌 Executive Summary\n(A concise overview)\n\n"
+                "### 🏷 Case Classification\n"
+                "- Nature: Criminal / Civil / Constitutional / Administrative\n"
+                "- Cyber Law Applicable: Yes / No\n"
+                "- Era: Pre-IT Act / Post-IT Act\n\n"
                 "### 📑 Key Legal Sections Referenced\n(List specific Acts and Sections)\n\n"
                 "### ⚖️ Critical Observations & Findings\n(Key points, obligations, facts)\n\n"
                 "### 📚 Citations & Case Law\n(If any mentioned)\n\n"
@@ -248,7 +260,8 @@ class RAGEngine:
             
             import json
             try:
-                # Attempt to parse JSON
+                # Attempt to parse JSON (handling potential trailing commas)
+                cleaned_text = re.sub(r',\s*}', '}', cleaned_text)
                 analysis_json = json.loads(cleaned_text)
                 return analysis_json
             except json.JSONDecodeError:
@@ -280,9 +293,11 @@ class RAGEngine:
         # Handle conversation memory and query reformulation
         original_query = query
         if session_id:
-            query = self.conversation_memory.reformulate_query(session_id, query)
-            if query != original_query:
-                print(f"[RAGEngine] Query reformulated: '{original_query}' -> '{query}'")
+            # SAFEGUARD: Do not reformulate very long queries (e.g. pasted text)
+            if len(query) < 300:
+                query = self.conversation_memory.reformulate_query(session_id, query)
+                if query != original_query:
+                    print(f"[RAGEngine] Query reformulated: '{original_query}' -> '{query}'")
         
         # Safe print for Windows consoles (handles Hindi chars)
         safe_query = query.encode('ascii', 'replace').decode('ascii')
@@ -362,12 +377,19 @@ class RAGEngine:
         # 1. Retrieve from Vector DB
         try:
             print(f"[RAGEngine] Starting Vector Search for '{search_query}'...", flush=True)
-            if self.collection:
+            
+            search_cache_key = f"search::{search_query}"
+            if search_cache_key in self._cache:
+                 print(f"[RAGEngine] Using Cached Search Results.")
+                 results = self._cache[search_cache_key]
+            elif self.collection:
                 results = self.collection.query(
                     query_texts=[search_query], # Use the (potentially) translated query
                     n_results=5,
                     include=["documents", "metadatas", "distances"]
                 )
+                # Cache the raw search results
+                self._cache[search_cache_key] = results
                 print(f"[RAGEngine] Vector Search Complete. Found: {len(results['documents'][0])} docs", flush=True)
                 
                 docs = results['documents'][0]
@@ -376,16 +398,21 @@ class RAGEngine:
                 dists = results['distances'][0]
                 min_dist = min(dists) if dists else 1.0
                 
+                doc_count = 0
                 for i, doc in enumerate(docs):
                     meta = metas[i]
                     dist = dists[i]
                     
                     # Relevance Cutoff tightened: dynamic + absolute guard
-                    if dist > (min_dist + 0.15) or dist > 0.4:
+                    # RELAXED threshold per expert recommendation
+                    if dist > 0.45:
                         continue
-                    # Limit context size: max 4 docs, ~2000 chars per doc
-                    if len(context_text.split('---\n')) > 4:
+                        
+                    # Limit context size: max 4 docs
+                    if doc_count >= 4:
                         break
+                    doc_count += 1
+                        
                     snippet = doc[:2000]
                     src = meta.get('source', 'Unknown')
                     law = meta.get('law')
@@ -427,19 +454,16 @@ class RAGEngine:
         if self.api_key:
             system_prompt = (
                 "You are LegalAi, an Indian legal research assistant.\n\n"
-                "CRITICAL RULES:\n"
-                "1. Answer ONLY using the provided legal context.\n"
-                "2. If sufficient legal context is not available, say: \"Insufficient verified legal context available.\"\n"
-                "3. Do NOT invent section numbers, punishments, or provisions.\n"
-                "4. Do NOT compare with other Acts unless explicitly asked.\n"
-                "5. Always ensure punishments and section references are accurate.\n\n"
-                "STRUCTURE YOUR ANSWER:\n"
-                "1. Direct Answer (1–2 sentences)\n"
-                "2. Relevant Provisions (correct section mapping)\n"
-                "3. Essential Ingredients (if applicable)\n"
-                "4. Punishment\n"
-                "5. Verifiable Source\n\n"
-                "FORMATTING:\n- Use Markdown with clear headings & bullets.\n- Bold section numbers and Act names.\n"
+                "CRITICAL INSTRUCTIONS:\n"
+                "1. PRIORITIZE the provided 'Context' for your answer.\n"
+                "2. IF context is missing or partial, SUPPLEMENT it with your general knowledge of Indian Law (IPC, BNS, IT Act).\n"
+                "3. NEVER invent section numbers or punishments. If you are not 100% sure about a specific section number, do not cite it.\n"
+                "4. ACCURACY CHECK: Punishment for IPC 420 is 'up to 7 years + fine'. Punishment for Murder (IPC 302) is 'Death or Life Imprisonment'. Ensure such facts are correct.\n"
+                "5. STRUCTURE:\n"
+                "   - Direct Answer\n"
+                "   - Provisions (if applicable)\n"
+                "   - Punishment (if applicable)\n"
+                "   - Source/Citation\n\n"
                 "DISCLAIMER: For informational purposes only. Not legal advice."
             )
             if language == "hi":
@@ -509,7 +533,7 @@ class RAGEngine:
                 raw_answer = self._call_llm([
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_query}
-                ], max_tokens=max_tokens, model_override=self.model_legal)
+                ], max_tokens=max_tokens, model_override=self.model_simple)
                 print(f"[RAGEngine] LLM returned response.", flush=True)
                 try:
                     print(f"\n[DEBUG] Raw LLM Answer:\n{raw_answer.encode('utf-8', 'replace').decode('utf-8')}\n[DEBUG] End Raw Answer\n", flush=True)
@@ -583,45 +607,51 @@ class RAGEngine:
         """
         Generates a formal legal draft based on the user's details.
         """
-        print(f"[RAGEngine] Generating draft: {draft_type}", flush=True)
-        
         templates = {
-            "legal_notice": "## LEGAL NOTICE\nThrough Registered Post / Speed Post / Email\nDate: [Date]\n\nTo,\n[Recipient Name]\n[Recipient Address]\n\n### Subject:\n**Legal Notice under [Applicable Law] regarding [Issue Brief]**\n\nSir/Madam,\n\nUnder instructions and on behalf of my client **[Sender Name]**, residing at [Sender Address], I hereby serve upon you the present legal notice as follows:\n\n### 1. Facts of the Case\nThat my client [Brief Background].\nThat despite requests, you have [Breach Description].\n\n### 2. Legal Provisions\nYour actions amount to violation of:\n- **[Section Name] of [Act Name]**\n- Other applicable provisions of law\n\n### 3. Cause of Action\nThat the cause of action arose on [Date] and continues to subsist.\n\n### 4. Demand\nYou are hereby called upon to:\n- [Specific Demand]\nwithin **[Time Limit] days** from receipt of this notice.\n\n### 5. Consequences\nFailing compliance, my client shall initiate legal proceedings at your risk.\n\nYours faithfully,\n**[Advocate Name]**\nAdvocate for [Sender Name]",
+            "legal_notice": "## LEGAL NOTICE\nThrough Registered Post / Speed Post / Email\nDate: [Date]\n\nTo,\n[Recipient Name]\n[Recipient Address]\n\n### Subject:\nLegal Notice under [Applicable Law] regarding [Issue Brief]\n\nSir/Madam,\n\nUnder instructions and on behalf of my client [Sender Name], residing at [Sender Address], I hereby serve upon you the present legal notice as follows:\n\n1. Facts of the Case\nThat my client [Brief Background].\nThat despite requests, you have [Breach Description].\n\n2. Legal Provisions\nYour actions amount to violation of:\n- [Section Name] of [Act Name]\n- Other applicable provisions of law\n\n3. Cause of Action\nThat the cause of action arose on [Date] and continues to subsist.\n\n4. Demand\nYou are hereby called upon to:\n- [Specific Demand]\nwithin [Time Limit] days from receipt of this notice.\n\n5. Consequences\nFailing compliance, my client shall initiate legal proceedings at your risk.\n\nYours faithfully,\n[Advocate Name]\nAdvocate for [Sender Name]",
             
-            "nda": "## NON-DISCLOSURE AGREEMENT (NDA)\n\nThis Agreement is entered into on [Date] between:\n\n**Party A:** [Party A Name], at [Address A]\n**Party B:** [Party B Name], at [Address B]\n\n### 1. Purpose\nThe parties wish to exchange confidential information for [Purpose].\n\n### 2. Definition of Confidential Information\n'Confidential Information' includes all written, oral, electronic information disclosed.\n\n### 3. Obligations\nThe Receiving Party shall:\n- Not disclose confidential information to third parties\n- Use the information solely for the stated purpose\n\n### 4. Exclusions\nInformation publicly available or required by law is excluded.\n\n### 5. Term\nValid for [Duration] years.\n\n### 6. Governing Law\nGoverned by laws of **India**.\n\n### 7. Jurisdiction\nCourts at [City] shall have exclusive jurisdiction.\n\nIN WITNESS WHEREOF, the parties have signed.\n\n**Party A Signature:** __________\n**Party B Signature:** __________",
+            "nda": "## NON-DISCLOSURE AGREEMENT (NDA)\n\nThis Agreement is entered into on [Date] between:\n\nParty A: [Party A Name], at [Address A]\nParty B: [Party B Name], at [Address B]\n\n1. Purpose\nThe parties wish to exchange confidential information for [Purpose].\n\n2. Definition of Confidential Information\n'Confidential Information' includes all written, oral, electronic information disclosed.\n\n3. Obligations\nThe Receiving Party shall:\n- Not disclose confidential information to third parties\n- Use the information solely for the stated purpose\n\n4. Exclusions\nInformation publicly available or required by law is excluded.\n\n5. Term\nValid for [Duration] years.\n\n6. Governing Law\nGoverned by laws of India.\n\n7. Jurisdiction\nCourts at [City] shall have exclusive jurisdiction.\n\nIN WITNESS WHEREOF, the parties have signed.\n\nParty A Signature: __________\nParty B Signature: __________",
             
-            "rent_agreement": "## RENT AGREEMENT\n\nThis Agreement is made on [Date] between:\n\n**Landlord:** [Landlord Name]\n**Tenant:** [Tenant Name]\n\n### 1. Property\nThe Landlord lets out the premises located at [Property Address].\n\n### 2. Rent\nMonthly rent shall be ₹[Rent Amount], payable on or before [Due Date].\n\n### 3. Security Deposit\nTenant shall pay ₹[Security Deposit] as refundable security deposit.\n\n### 4. Term\nValid for [Duration] months.\n\n### 5. Maintenance\nTenant shall maintain the premises and not sublet without permission.\n\n### 6. Termination\nEither party may terminate with [Notice Period] days’ notice.\n\nSigned on [Date].\n\n**Landlord Signature:** _______\n**Tenant Signature:** _______",
+            "rent_agreement": "## RENT AGREEMENT\n\nThis Agreement is made on [Date] between:\n\nLandlord: [Landlord Name]\nTenant: [Tenant Name]\n\n1. Property\nThe Landlord lets out the premises located at [Property Address].\n\n2. Rent\nMonthly rent shall be Rs. [Rent Amount], payable on or before [Due Date].\n\n3. Security Deposit\nTenant shall pay Rs. [Security Deposit] as refundable security deposit.\n\n4. Term\nValid for [Duration] months.\n\n5. Maintenance\nTenant shall maintain the premises and not sublet without permission.\n\n6. Termination\nEither party may terminate with [Notice Period] days notice.\n\nSigned on [Date].\n\nLandlord Signature: _______\nTenant Signature: _______",
             
-            "affidavit": "## AFFIDAVIT\n\nI, [Deponent Name], aged [Age], residing at [Address], do hereby solemnly affirm:\n\n1. That I am the deponent herein and competent to swear this affidavit.\n2. That [Statement of Facts].\n3. That the statements made herein are true to my knowledge.\n\nVerified at [Place] on [Date].\n\n**DEPONENT SIGNATURE**\n\nSolemnly affirmed before me on [Date].\n\n**Notary / Oath Commissioner**",
+            "affidavit": "## AFFIDAVIT\n\nI, [Deponent Name], aged [Age], residing at [Address], do hereby solemnly affirm:\n\n1. That I am the deponent herein and competent to swear this affidavit.\n2. That [Statement of Facts].\n3. That the statements made herein are true to my knowledge.\n\nVerified at [Place] on [Date].\n\nDEPONENT SIGNATURE\n\nSolemnly affirmed before me on [Date].\n\nNotary / Oath Commissioner",
             
-            "employment_contract": "## EMPLOYMENT AGREEMENT\n\nThis Agreement is entered on [Date] between:\n\n**Employer:** [Company Name]\n**Employee:** [Employee Name]\n\n### 1. Designation\nEmployee shall serve as [Designation].\n\n### 2. Duties\nEmployee shall perform duties assigned from time to time.\n\n### 3. Salary\nMonthly remuneration shall be ₹[Salary].\n\n### 4. Confidentiality\nEmployee shall maintain confidentiality during and after employment.\n\n### 5. Termination\nEither party may terminate with [Notice Period] days’ notice.\n\nSigned:\n\nEmployer: _______\nEmployee: _______",
+            "employment_contract": "## EMPLOYMENT AGREEMENT\n\nThis Agreement is entered on [Date] between:\n\nEmployer: [Company Name]\nEmployee: [Employee Name]\n\n1. Designation\nEmployee shall serve as [Designation].\n\n2. Duties\nEmployee shall perform duties assigned from time to time.\n\n3. Salary\nMonthly remuneration shall be Rs. [Salary].\n\n4. Confidentiality\nEmployee shall maintain confidentiality during and after employment.\n\n5. Termination\nEither party may terminate with [Notice Period] days notice.\n\nSigned:\n\nEmployer: _______\nEmployee: _______",
             
-            "posh_complaint": "## COMPLAINT UNDER POSH ACT, 2013\n\nTo,\nThe Internal Complaints Committee\n[Organization Name]\n\n### Subject:\nComplaint under **Sexual Harassment of Women at Workplace Act, 2013**\n\nI, [Complainant Name], employed as [Designation], submit the following:\n\n### 1. Incident Details\nOn [Date], at [Place], the respondent [Respondent Name] [Description of Harassment].\n\n### 2. Evidence\n[List of Evidence]\n\n### 3. Relief Sought\nI request appropriate inquiry and action under POSH Act.\n\nI affirm the above facts are true.\n\nSignature: ______\nDate: ______",
+            "posh_complaint": "## COMPLAINT UNDER POSH ACT, 2013\n\nTo,\nThe Internal Complaints Committee\n[Organization Name]\n\nSubject: Complaint under Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013\n\n1. Complainant Details\nName: [Complainant Name]\nDesignation: [Designation]\nDepartment: [Department]\n\n2. Respondent Details\nName: [Respondent Name]\nDesignation: [Respondent Designation]\nRelationship with Complainant: [Relationship]\n\n3. Incident Details\nDate of Incident: [Date]\nPlace of Incident: [Place]\nDescription of Incident:\n[Detailed Description of Harassment]\n\n4. Impact\nThe incident has created a hostile work environment and affected my dignity/work performance.\n\n5. Witnesses (if any)\n[List of Witnesses]\n\n6. Evidence (if any)\n[List of Evidence]\n\n7. Relief Sought\nI requested the ICC to conduct an inquiry into this matter and take appropriate action against the respondent under the POSH Act.\n\nI hereby declare that the information provided above is true and correct to the best of my knowledge.\n\nSignature: ______\nDate: ______",
             
-            "rti_application": "## APPLICATION UNDER RTI ACT, 2005\n\nTo,\nThe Public Information Officer\n[Department Name]\n\nSubject: Information under RTI Act, 2005\n\nSir/Madam,\n\nKindly provide the following information:\n\n1. [Question 1]\n2. [Question 2]\n\nI have enclosed the application fee of ₹10.\n\nAddress for correspondence: [Address]\n\nDate: [Date]\nApplicant Signature: _______"
+            "rti_application": "## APPLICATION UNDER RTI ACT, 2005\n\nTo,\nThe Public Information Officer\n[Department Name]\n\nSubject: Information under RTI Act, 2005\n\nSir/Madam,\n\nKindly provide the following information regarding [Subject Matter]:\n\n1. [Question 1]\n2. [Question 2]\n\nI have enclosed the application fee of Rs. 10.\n\nAddress for correspondence: [Address]\n\nDate: [Date]\nApplicant Signature: _______"
         }
 
         template = templates.get(draft_type, "Generate a formal legal document for the user.")
 
         system_prompt = (
-            "You are an Indian Legal Drafting Assistant.\n\n"
-            "TASK:\n"
-            f"Fill in the following template based on the user's details. Do not change the legal structure unless necessary.\n\n"
-            f"TEMPLATE:\n{template}\n\n"
-            "RULES:\n"
-            "- Replace placeholders like [Name], [Date] with actual info from user input.\n"
-            "- If info is missing, keep the placeholder or make a reasonable inference (e.g., 'Date: Today').\n"
-            "- OUTPUT ONLY THE DOCUMENT CONTENT.\n"
-            "- Add a disclaimer at the very bottom.\n\n"
+            "You are an Indian Legal Drafting Assistant. YOUR GOAL is to fill the provided template accurately.\n\n"
+            f"TEMPLATE STRUCTURE (Reference Only):\n{template}\n\n"
+            "CRITICAL RULES:\n"
+            "1. NO MARKDOWN BOLDING: Do NOT use **bold** or *italic* syntax. Use plain text.\n"
+            "2. ADAPTIVE LENGTH: If user provides detailed input, EXPAND the draft. Add extra paragraphs/points to cover all user details. Do NOT truncate user info to fit the template.\n"
+            "3. REPLACE PLACEHOLDERS: Replace [Name], [Date] with actual info. Infer missing info reasonably.\n"
+            "4. OUTPUT: Return ONLY the filled document content.\n"
+            "5. DISCLAIMER: Add a standard disclaimer at the very bottom.\n\n"
         )
 
         if language == 'hi':
             system_prompt += (
-                "CRITICAL LANGUAGE RULE: Respond FULLY in Hindi (Devanagari script).\n"
-                "Use formal legal Hindi (Vidhi Hindi).\n"
+                "CRITICAL HINDI RULES:\n"
+                "1. TRANSLATE THE ENTIRE DOCUMENT TO HINDI (Devanagari).\n"
+                "2. USE CORRECT LEGAL TERMINOLOGY (Glossary below):\n"
+                "   - 'Legal Notice' -> 'विधिक सूचना' (Vidhik Suchna)\n"
+                "   - 'Demand' -> 'मांग' (Maang) or 'अपेक्षा' (Apeksha)\n"
+                "   - 'Cause of Action' -> 'वाद का कारण' (Vaad ka Kaaran)\n"
+                "   - 'Rent Agreement' -> 'किरायानामा' (Kirayanama)\n"
+                "   - 'Affidavit' -> 'शपथ पत्र' (Shapath Patra)\n"
+                "3. Translate Headers properly (e.g., '1. Purpose' -> '1. उद्देश्य').\n"
+                "4. ONLY keep specific Act Names/Section Numbers in English (e.g., 'Section 420 IPC').\n"
+                "5. Do NOT use Hinglish. Ensure full grammatical correctness.\n"
             )
         else:
-            system_prompt += "Respond in English."
+            system_prompt += "Respond in formal English."
 
         messages = [
             {"role": "system", "content": system_prompt},

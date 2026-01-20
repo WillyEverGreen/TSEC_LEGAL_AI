@@ -8,9 +8,7 @@ import { ContainerScroll } from "./ui/container-scroll-animation";
 const HeroSection = () => {
   return (
     <div className="relative flex flex-col items-center justify-start overflow-visible bg-[#09090B] pt-24 md:pt-32 pb-0">
-      {/* Background Gradients */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-purple-500/20 rounded-full blur-[120px] opacity-40 mix-blend-screen pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[100px] opacity-30 pointer-events-none" />
+      {/* Background Gradients - Removed as per user request */}
 
       {/* Content Container */}
       <div className="container relative z-10 px-4 md:px-6 text-center max-w-5xl mx-auto pt-12">

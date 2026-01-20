@@ -62,10 +62,10 @@ export function Navbar({ autoHide = false }: { autoHide?: boolean }) {
 
   const navLinksData = [
     { label: 'Home', href: '/' },
-    { label: 'Assistant', href: '/chat' },
     { label: 'Draft', href: '/draft' },
-    { label: 'Compare', href: '/compare' },
     { label: 'Summarizer', href: '/summarize' },
+    { label: 'Compare', href: '/compare' },
+    { label: 'Assistant', href: '/chat' },
   ];
 
   const sidebarVisible = autoHide ? (isHovered || isOpen) : true;
