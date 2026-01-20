@@ -4,9 +4,12 @@ from pydantic import BaseModel
 import uvicorn
 import os
 from dotenv import load_dotenv
+import pathlib
 from rag_engine import RAGEngine
 
-load_dotenv()
+# Load .env from parent directory (root of project)
+base_path = pathlib.Path(__file__).parent.parent
+load_dotenv(dotenv_path=base_path / ".env")
 
 app = FastAPI(title="Legal Compass AI RAG Service")
 
@@ -41,6 +44,8 @@ async def handle_query(request: QueryRequest):
         response = await engine.query(request.query, request.language, request.arguments_mode, request.analysis_mode)
         return response
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/summarize")
@@ -54,5 +59,17 @@ async def handle_summarize(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class CompareRequest(BaseModel):
+    text1: str
+    text2: str
+
+@app.post("/compare")
+async def handle_compare(request: CompareRequest):
+    try:
+        comparison = await engine.compare_clauses(request.text1, request.text2)
+        return {"comparison": comparison}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, timeout_keep_alive=300)

@@ -2,8 +2,8 @@ fastapi
 uvicorn
 python-multipart
 requests
-openai
 chromadb
 sentence-transformers
 python-dotenv
 pypdf
+pdfplumber

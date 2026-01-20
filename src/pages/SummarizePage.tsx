@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Upload, CheckCircle } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
 
 const SummarizePage = () => {
     const [file, setFile] = useState<File | null>(null);
@@ -95,7 +96,7 @@ const SummarizePage = () => {
                         <CardContent>
                             {summary ? (
                                 <div className="prose dark:prose-invert max-w-none text-sm">
-                                    <pre className="whitespace-pre-wrap font-sans">{summary}</pre>
+                                    <ReactMarkdown>{summary}</ReactMarkdown>
                                 </div>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
@@ -107,7 +108,7 @@ const SummarizePage = () => {
                     </Card>
                 </div>
             </div>
-            <Footer />
+            
         </div>
     );
 };

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Loader2, Scale, Zap, Shield, BookOpen, Mic, MicOff, Download, FileText } from "lucide-react";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -198,9 +198,9 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen overflow-hidden flex flex-col bg-background">
       <Header />
-      <div className="flex-1 container mx-auto p-4 flex flex-col h-[calc(100vh-80px)] max-w-5xl">
+      <div className="flex-1 container mx-auto p-4 flex flex-col overflow-hidden max-w-5xl">
         
         {/* Top Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 bg-card p-4 rounded-xl border shadow-sm">
@@ -362,21 +362,23 @@ const ChatPage = () => {
             </ScrollArea>
         </Card>
 
-        {/* Quick Prompts */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-            {QUICK_PROMPTS.map((prompt, idx) => (
-                <button 
-                    key={idx}
-                    onClick={() => handleSend(prompt.query)}
-                    className="flex-shrink-0 text-xs font-medium bg-secondary/50 hover:bg-secondary text-secondary-foreground px-3 py-1.5 rounded-full border border-border transition-colors whitespace-nowrap"
-                >
-                    {prompt.text}
-                </button>
-            ))}
-        </div>
+        {/* Quick Prompts - Only show when no messages */}
+        {messages.length === 0 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide shrink-0">
+                {QUICK_PROMPTS.map((prompt, idx) => (
+                    <button 
+                        key={idx}
+                        onClick={() => handleSend(prompt.query)}
+                        className="flex-shrink-0 text-xs font-medium bg-secondary/50 hover:bg-secondary text-secondary-foreground px-3 py-1.5 rounded-full border border-border transition-colors whitespace-nowrap"
+                    >
+                        {prompt.text}
+                    </button>
+                ))}
+            </div>
+        )}
 
-        {/* Input Area */}
-        <div className="flex gap-2">
+        {/* Input Area - Fixed at bottom of flex container */}
+        <div className="flex gap-2 shrink-0 bg-background pt-2">
             <Button 
                 variant={isListening ? "destructive" : "outline"}
                 className="h-12 w-12 shrink-0 p-0"
@@ -400,7 +402,7 @@ const ChatPage = () => {
             Legal Compass AI is an assistive tool. Always consult a professional lawyer for legal advice.
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 };

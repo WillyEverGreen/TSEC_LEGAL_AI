@@ -39,7 +39,9 @@ app.use('/api/v1', createProxyMiddleware({
     onProxyReq: (proxyReq, req, res) => {
         // Optional: Add logging or auth headers here
         console.log(`[Gateway] Forwarding ${req.method} request to: ${proxyReq.path}`);
-    }
+    },
+    proxyTimeout: 300000,
+    timeout: 300000
 }));
 
 app.listen(PORT, () => {
