@@ -5,11 +5,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, Scale, Zap, BookOpen, Mic, MicOff, Download, Sparkles, Send, Menu, Plus, Trash2, MessageSquare, ExternalLink } from "lucide-react";
+import { Loader2, Scale, Zap, BookOpen, Mic, MicOff, Download, Sparkles, Send, Menu, Plus, Trash2, MessageSquare, ExternalLink, Volume2, VolumeX } from "lucide-react";
 import Header from "@/components/Header";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { ReadAloudButton } from "@/components/ReadAloudButton";
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -75,6 +76,11 @@ const ChatPage = () => {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Text-to-speech state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
+  const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   // Load conversations from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('legal-compass-conversations');
@@ -100,6 +106,103 @@ const ChatPage = () => {
       localStorage.setItem('legal-compass-conversations', JSON.stringify(conversations));
     }
   }, [conversations]);
+
+  // Cleanup speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (speechSynthesisRef.current) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Text-to-speech functions
+  const handleReadAloud = (text: string, messageIndex: number) => {
+    console.log('🔊 Read Aloud clicked!', { text: text.substring(0, 50), messageIndex });
+    
+    // Check browser support
+    if (!('speechSynthesis' in window)) {
+      console.error('❌ Speech Synthesis not supported in this browser');
+      alert('Text-to-speech is not supported in your browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    // If already speaking this message, stop it
+    if (isSpeaking && speakingMessageIndex === messageIndex) {
+      console.log('⏹️ Stopping speech...');
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setSpeakingMessageIndex(null);
+      return;
+    }
+
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+
+    // Small delay to prevent interruption error
+    setTimeout(() => {
+      // Get available voices
+      let voices = window.speechSynthesis.getVoices();
+      
+      // If voices aren't loaded yet, wait for them
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          voices = window.speechSynthesis.getVoices();
+          startSpeaking(voices);
+        };
+      } else {
+        startSpeaking(voices);
+      }
+
+      function startSpeaking(voices: SpeechSynthesisVoice[]) {
+        // Create new utterance
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Select a female voice (prefer Google US English Female or similar)
+        const femaleVoice = voices.find(
+          voice => voice.name.includes('Female') || 
+                   voice.name.includes('Google') && voice.name.includes('US') ||
+                   voice.name.includes('Samantha') || 
+                   voice.name.includes('Zira') ||
+                   voice.name.includes('Microsoft') && voice.name.includes('Female')
+        ) || voices.find(voice => voice.lang.startsWith('en'));
+
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+          console.log('🎙️ Using voice:', femaleVoice.name);
+        }
+
+        utterance.rate = 0.85; // Slower, softer pace
+        utterance.pitch = 1.1; // Slightly higher pitch for softer sound
+        utterance.volume = 0.9; // Slightly softer volume
+
+        console.log('🎤 Starting speech synthesis...');
+
+        // Event handlers
+        utterance.onstart = () => {
+          console.log('✅ Speech started!');
+          setIsSpeaking(true);
+          setSpeakingMessageIndex(messageIndex);
+        };
+
+        utterance.onend = () => {
+          console.log('🏁 Speech ended');
+          setIsSpeaking(false);
+          setSpeakingMessageIndex(null);
+        };
+
+        utterance.onerror = (event) => {
+          console.error('❌ Speech error:', event);
+          setIsSpeaking(false);
+          setSpeakingMessageIndex(null);
+        };
+
+        speechSynthesisRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+        console.log('📢 Speech queued');
+      }
+    }, 100); // 100ms delay to prevent interruption
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -606,8 +709,30 @@ const ChatPage = () => {
                                   {msg.role === 'assistant' ? (
                                       <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-[#18181b] prose-pre:border prose-pre:border-[#27272a]">
                                           <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                          
-                                          {/* Analysis Cards */}
+                                           
+                                           {/* Read Aloud Button */}
+                                           <div className="mt-3 flex items-center gap-2 not-prose">
+                                             <Button
+                                               variant="ghost"
+                                               size="sm"
+                                               onClick={() => handleReadAloud(msg.content, idx)}
+                                               className="h-8 px-3 text-xs text-gray-400 hover:text-white hover:bg-[#27272a] transition-colors"
+                                             >
+                                               {isSpeaking && speakingMessageIndex === idx ? (
+                                                 <>
+                                                   <VolumeX className="w-3.5 h-3.5 mr-1.5" />
+                                                   Stop Reading
+                                                 </>
+                                               ) : (
+                                                 <>
+                                                   <Volume2 className="w-3.5 h-3.5 mr-1.5" />
+                                                   Read Aloud
+                                                 </>
+                                               )}
+                                             </Button>
+                                           </div>
+                                           
+                                           {/* Analysis Cards */}
                                           {(msg.neutral_analysis || msg.arguments || (msg.judgments && msg.judgments.length > 0)) && (
                                              <div className="mt-6 flex flex-col gap-4 not-prose">
                                                 {msg.neutral_analysis && (

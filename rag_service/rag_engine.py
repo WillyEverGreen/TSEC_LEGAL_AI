@@ -71,6 +71,39 @@ class RAGEngine:
         # Default to legal for safety
         return 'legal'
     
+    def _generate_statute_url(self, law: str, section: str) -> Optional[str]:
+        """Generate IndiaCode.nic.in URL for Indian statutes."""
+        if not law or not section:
+            return None
+        
+        # Extract section number (handle formats like "Section 109", "109", etc.)
+        section_num = re.search(r'\d+', str(section))
+        if not section_num:
+            return None
+        section_num = section_num.group()
+        
+        law_lower = law.lower()
+        
+        # Map common law names to IndiaCode URLs
+        url_mappings = {
+            'ipc': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_5_23_00037_186045_1523266765688&sectionId=22343&sectionno={section_num}',
+            'indian penal code': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_5_23_00037_186045_1523266765688&sectionId=22343&sectionno={section_num}',
+            'bns': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN____00023_00000____00000_____&sectionId=&sectionno={section_num}',
+            'bharatiya nyaya sanhita': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN____00023_00000____00000_____&sectionId=&sectionno={section_num}',
+            'it act': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_45_76_00001_200021_1517807326986&sectionId=1643&sectionno={section_num}',
+            'information technology act': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_45_76_00001_200021_1517807326986&sectionId=1643&sectionno={section_num}',
+            'crpc': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_5_23_00006_197301_1517807320906&sectionId=1826&sectionno={section_num}',
+            'code of criminal procedure': f'https://www.indiacode.nic.in/show-data?actid=AC_CEN_5_23_00006_197301_1517807320906&sectionId=1826&sectionno={section_num}',
+        }
+        
+        for key, url in url_mappings.items():
+            if key in law_lower:
+                return url
+        
+        # Fallback: general IndiaCode search
+        return f'https://www.indiacode.nic.in/search?keyword={law.replace(" ", "+")}+section+{section_num}'
+    
+    
     def _call_llm(self, messages: List[Dict], max_tokens: int = 1500, timeout: int = 30, model_override: Optional[str] = None) -> str:
         """Helper to call OpenRouter API with timeout."""
         if not self.api_key:
@@ -420,10 +453,12 @@ class RAGEngine:
                     context_text += f"---\nSource: {src}\nContent: {snippet}\n"
                     
                     if meta.get("type") == "statute":
+                         # Generate URL if not in metadata
+                         citation_url = meta.get("url") or self._generate_statute_url(law, section)
                          citations.append({
                              "source": (law or "Statute"),
                              "section": f"Section {section}" if section else None,
-                             "url": meta.get("url"),
+                             "url": citation_url,
                              "text": snippet[:200] + "..."
                          })
                     elif meta.get("type") == "judgment":
@@ -453,17 +488,23 @@ class RAGEngine:
         print(f"[RAGEngine] Preparing LLM request...", flush=True)
         if self.api_key:
             system_prompt = (
-                "You are LegalAi, an Indian legal research assistant.\n\n"
+                "You are LegalAi, an expert Indian legal research assistant with comprehensive knowledge of Indian law.\n\n"
                 "CRITICAL INSTRUCTIONS:\n"
-                "1. PRIORITIZE the provided 'Context' for your answer.\n"
-                "2. IF context is missing or partial, SUPPLEMENT it with your general knowledge of Indian Law (IPC, BNS, IT Act).\n"
-                "3. NEVER invent section numbers or punishments. If you are not 100% sure about a specific section number, do not cite it.\n"
-                "4. ACCURACY CHECK: Punishment for IPC 420 is 'up to 7 years + fine'. Punishment for Murder (IPC 302) is 'Death or Life Imprisonment'. Ensure such facts are correct.\n"
-                "5. STRUCTURE:\n"
-                "   - Direct Answer\n"
-                "   - Provisions (if applicable)\n"
-                "   - Punishment (if applicable)\n"
-                "   - Source/Citation\n\n"
+                "1. ALWAYS provide authoritative, professional answers. NEVER mention 'context not available', 'provided context', or data limitations.\n"
+                "2. Use the provided Context when available, otherwise rely on your knowledge of Indian Law (IPC, BNS, CrPC, IT Act, Constitution).\n"
+                "3. NEVER say 'does not directly relate' or 'not applicable'. If a question is about constitutional law, civil law, or case law, answer it confidently.\n"
+                "4. For landmark cases (e.g., Kesavananda Bharati), provide the case name, year, key holding, and citation (AIR/SCC) even if not in the database.\n"
+                "5. ACCURACY: Verify facts. IPC 420 = up to 7 years + fine. IPC 302 = Death or Life Imprisonment.\n"
+                "6. STRUCTURE:\n"
+                "   - Direct Answer (clear, confident)\n"
+                "   - Provisions/Key Points (if applicable)\n"
+                "   - Punishment/Outcome (if applicable)\n"
+                "   - Source/Citation (statute or case law)\n\n"
+                "7. NEVER use phrases like:\n"
+                "   - 'The provided context does not contain...'\n"
+                "   - 'Not applicable as...'\n"
+                "   - 'Does not directly relate to...'\n"
+                "   Instead, answer the question directly and professionally.\n\n"
                 "DISCLAIMER: For informational purposes only. Not legal advice."
             )
             if language == "hi":
@@ -593,6 +634,38 @@ class RAGEngine:
             except Exception as e:
                 print(f"[RAGEngine] LLM Error: {e}")
                 answer = f"Error: {str(e)}"
+
+        # POST-PROCESSING: Extract statute references from answer and add citations if missing
+        if answer and not citations:
+            # Extract statute references like "Section 120 IPC", "Article 370", "Section 66A IT Act"
+            statute_patterns = [
+                r'Section\s+(\d+[A-Z]*)\s+(?:of\s+)?(?:the\s+)?(IPC|Indian Penal Code|BNS|Bharatiya Nyaya Sanhita|IT Act|Information Technology Act|CrPC|Code of Criminal Procedure)',
+                r'Article\s+(\d+[A-Z]*)\s+(?:of\s+)?(?:the\s+)?Constitution',
+                r'(IPC|BNS)\s+Section\s+(\d+[A-Z]*)',
+            ]
+            
+            for pattern in statute_patterns:
+                matches = re.finditer(pattern, answer, re.IGNORECASE)
+                for match in matches:
+                    if 'Article' in match.group(0):
+                        section_num = match.group(1)
+                        law_name = "Constitution of India"
+                        url = f"https://www.constitutionofindia.net/constitution_of_india/part{section_num[0] if section_num[0].isdigit() else '1'}/articles/Article%20{section_num}"
+                    elif len(match.groups()) >= 2:
+                        section_num = match.group(1)
+                        law_name = match.group(2)
+                        url = self._generate_statute_url(law_name, section_num)
+                    else:
+                        continue
+                    
+                    # Add citation if not already present
+                    if not any(c.get('section', '').endswith(section_num) for c in citations):
+                        citations.append({
+                            "source": law_name,
+                            "section": f"Section {section_num}" if 'Section' in match.group(0) else f"Article {section_num}",
+                            "url": url,
+                            "text": f"Referenced in response"
+                        })
 
         return {
             "answer": answer,

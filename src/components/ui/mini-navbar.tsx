@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Scale } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Scale, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const AnimatedNavLink = ({ href, children, isActive }: { href: string; children: React.ReactNode; isActive?: boolean }) => {
@@ -24,8 +24,30 @@ export function Navbar({ autoHide = false }: { autoHide?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [headerShapeClass, setHeaderShapeClass] = useState('rounded-full');
   const [isHovered, setIsHovered] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const shapeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem('legalai_auth');
+      setIsLoggedIn(authStatus === 'true');
+    };
+    
+    checkAuth();
+    // Listen for storage changes (for multi-tab sync)
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('legalai_auth');
+    localStorage.removeItem('legalai_user');
+    setIsLoggedIn(false);
+    navigate('/login');
+  };
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -108,11 +130,28 @@ export function Navbar({ autoHide = false }: { autoHide?: boolean }) {
         </nav>
 
         <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-           <Link to="/chat">
-               <button className="px-5 py-2 text-xs font-medium text-black bg-white rounded-full hover:bg-gray-200 transition-colors duration-200 shadow-[0_0_10px_rgba(255,255,255,0.2)]">
-                  Launch App
-               </button>
-           </Link>
+           {isLoggedIn ? (
+             <button 
+               onClick={handleLogout}
+               className="px-5 py-2 text-xs font-medium text-black bg-white rounded-full hover:bg-gray-200 transition-colors duration-200 shadow-[0_0_10px_rgba(255,255,255,0.2)] flex items-center gap-2"
+             >
+               <LogOut className="w-3.5 h-3.5" />
+               Logout
+             </button>
+           ) : (
+             <>
+               <Link to="/login">
+                   <button className="px-5 py-2 text-xs font-medium text-white border border-white/20 rounded-full hover:bg-white/10 transition-colors duration-200">
+                      Sign In
+                   </button>
+               </Link>
+               <Link to="/chat">
+                   <button className="px-5 py-2 text-xs font-medium text-black bg-white rounded-full hover:bg-gray-200 transition-colors duration-200 shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+                      Launch App
+                   </button>
+               </Link>
+             </>
+           )}
         </div>
 
         <button className="sm:hidden flex items-center justify-center w-8 h-8 text-gray-300 focus:outline-none" onClick={toggleMenu} aria-label={isOpen ? 'Close Menu' : 'Open Menu'}>
@@ -134,11 +173,28 @@ export function Navbar({ autoHide = false }: { autoHide?: boolean }) {
           ))}
         </nav>
         <div className="flex flex-col items-center space-y-4 mt-4 w-full pb-2">
-           <Link to="/chat" className="w-full">
-               <button className="w-full px-4 py-2 text-sm font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors">
-                  Launch App
-               </button>
-           </Link>
+           {isLoggedIn ? (
+             <button 
+               onClick={handleLogout}
+               className="w-full px-4 py-2 text-sm font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+             >
+               <LogOut className="w-4 h-4" />
+               Logout
+             </button>
+           ) : (
+             <>
+               <Link to="/login" className="w-full">
+                   <button className="w-full px-4 py-2 text-sm font-semibold text-white border border-white/20 rounded-full hover:bg-white/10 transition-colors">
+                      Sign In
+                   </button>
+               </Link>
+               <Link to="/chat" className="w-full">
+                   <button className="w-full px-4 py-2 text-sm font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors">
+                      Launch App
+                   </button>
+               </Link>
+             </>
+           )}
         </div>
       </div>
     </header>

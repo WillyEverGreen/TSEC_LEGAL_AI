@@ -8,6 +8,9 @@ import ChatPage from "./pages/ChatPage";
 import ComparisonPage from "./pages/ComparisonPage";
 import SummarizePage from "./pages/SummarizePage";
 import DraftingPage from "./pages/DraftingPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,10 +23,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/draft" element={<DraftingPage />} />
-          <Route path="/compare" element={<ComparisonPage />} />
-          <Route path="/summarize" element={<SummarizePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/draft" element={<ProtectedRoute><DraftingPage /></ProtectedRoute>} />
+          <Route path="/compare" element={<ProtectedRoute><ComparisonPage /></ProtectedRoute>} />
+          <Route path="/summarize" element={<ProtectedRoute><SummarizePage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
